@@ -209,17 +209,26 @@
     <a href="users.html">Users</a>
   </div>
   <input type="text" id="search" placeholder="Search posts..." oninput="filterMessages()">
+  <button id="filterAlvaPosts" style="margin-top: 0.5em; padding: 0.6em; border-radius: 6px; border: 1px solid #ccc; background-color: #f0f0f0; cursor: pointer;">Show Alva's Posts</button>
   <div id="messages"></div>
 
   <script>
     const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
     const SECRET_KEY = "alva-the-fortnite-god";
     let allMessages = [];
+    let currentFilterAuthor = null; // New global variable for author filter
+    let currentSearchTerm = ""; // New global variable for search term
 
     // Initialize page
-    loadMessages();
-    setupPostCard();
+    init();
 
+    function init() {
+      loadMessages();
+      setupPostCard();
+      const filterAlvaPostsButton = document.getElementById("filterAlvaPosts");
+      filterAlvaPostsButton.addEventListener("click", toggleAlvaFilter);
+    }
+    
     // --- RENDER POST CARD OR LOGIN PROMPT ---
     function setupPostCard() {
       const container = document.getElementById("createPostCard");
@@ -307,7 +316,40 @@
     async function loadMessages() {
       const res = await fetch(API_URL);
       allMessages = await res.json();
-      renderMessages(allMessages);
+      applyFiltersAndRender(); // Initial render after loading all messages
+    }
+
+    function applyFiltersAndRender() {
+      let filteredMessages = allMessages;
+
+      // Apply author filter
+      if (currentFilterAuthor) {
+        filteredMessages = filteredMessages.filter(m => m.username === currentFilterAuthor);
+      }
+
+      // Apply search term filter
+      if (currentSearchTerm) {
+        const term = currentSearchTerm.toLowerCase();
+        filteredMessages = filteredMessages.filter(m =>
+          (m.message || "").toLowerCase().includes(term) ||
+          (m.username || "").toLowerCase().includes(term) ||
+          (m.name || "").toLowerCase().includes(term)
+        );
+      }
+
+      renderMessages(filteredMessages);
+    }
+    
+    function toggleAlvaFilter() {
+      const filterAlvaPostsButton = document.getElementById("filterAlvaPosts");
+      if (currentFilterAuthor === "alva") {
+        currentFilterAuthor = null;
+        filterAlvaPostsButton.textContent = "Show Alva's Posts";
+      } else {
+        currentFilterAuthor = "alva";
+        filterAlvaPostsButton.textContent = "Show All Posts";
+      }
+      applyFiltersAndRender();
     }
 
     async function renderMessages(data) {
@@ -445,13 +487,8 @@
     }
 
     function filterMessages() {
-      const term = document.getElementById("search").value.toLowerCase();
-      const filtered = allMessages.filter(m =>
-        (m.message || "").toLowerCase().includes(term) ||
-        (m.username || "").toLowerCase().includes(term) ||
-        (m.name || "").toLowerCase().includes(term)
-      );
-      renderMessages(filtered);
+      currentSearchTerm = document.getElementById("search").value;
+      applyFiltersAndRender();
     }
   </script>
 </body>
