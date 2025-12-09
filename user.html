@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Profile</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2em; max-width: 600px; }
+    a { color: #1976d2; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    #backLink { display: inline-block; margin-bottom: 1em; }
+
+    .profile-card {
+      background: #e3f2fd;
+      padding: 1em;
+      border-radius: 8px;
+      margin-bottom: 1em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #username { font-size: 1.4em; margin-bottom: 0.2em; }
+    #bio { font-size: 1.05em; margin-bottom: 0.5em; }
+    #dateCreated { font-size: 0.9em; color: #555; }
+
+    .post {
+      background: #f5f5f5;
+      padding: 0.8em;
+      margin: 0.5em 0;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+    .post:hover { background: #e3f2fd !important; }
+    .post-header { font-weight: bold; font-size: 1.1em; }
+    .post-header a { margin-left: 0.5em; font-weight: normal; }
+    .post-message { margin: 0.5em 0; }
+    small { color: gray; font-size: 0.85em; }
+
+    .follow-btn {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.3s ease;
+    }
+    .follow-btn:hover { background: rgba(25,118,210,0.12); }
+    .follow-btn svg { width: 20px; height: 20px; fill: #1976d2; }
+    .follow-btn.loading svg { animation: spin 0.6s linear infinite; opacity: 0.6; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 2em;
+      margin: 1.2em 0 1em 0;
+      font-size: 1.25em;
+    }
+    .tabs a { color: black; text-decoration: none; font-weight: normal; transition: font-weight 0.15s ease; }
+    .tabs a:hover { font-weight: bold; color: black; }
+    .tabs a.active { font-weight: bold; color: black; cursor: default; }
+
+    #search { width: 100%; padding: 0.6em; margin: 0.5em 0 1em 0; border-radius: 6px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <a id="backLink" href="#">← Back</a>
+  <script>
+    const URLparams = new URLSearchParams(window.location.search);
+    const from = URLparams.get("from") || "index.html";
+    document.getElementById("backLink").href = from;
+  </script>
+
+  <div class="profile-card">
+    <div>
+      <h1 id="username"></h1>
+      <p id="bio"></p>
+      <p id="dateCreated"><em>Date joined: [placeholder]</em></p>
+    </div>
+    <button id="followBtn" class="follow-btn" style="display:none;"></button>
+  </div>
+
+  <div class="tabs">
+    <a href="#" id="postsTab" class="active">Posts</a>
+    <a href="#" id="followingTab">Following</a>
+    <a href="#" id="followersTab">Followers</a>
+  </div>
+
+  <input type="text" id="search" placeholder="Search posts..." oninput="filterPosts()">
+  <div id="posts"></div>
+
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const SECRET_KEY = "alva-the-fortnite-god";
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+
+    let allPosts = [];
+    let followingSet = new Set();
+
+    // === SVG ICONS (copied from users.html) ===
+    function svgFollowOutline() {
+      return `<svg xmlns="http://www.w3.org/2000/svg" class="bi bi-person-check" viewBox="0 0 16 16">
+        <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7m1.679-4.493-1.335 2.226a.75.75 0 0 1-1.174.144l-.774-.773a.5.5 0 0 1 .708-.708l.547.548 1.17-1.951a.5.5 0 1 1 .858.514"/>
+        <path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4"/>
+        <path d="M8.256 14a4.5 4.5 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10q.39 0 .74.025c.226-.341.496-.65.804-.918Q8.844 9.002 8 9c-5 0-6 3-6 4s1 1 1 1z"/>
+      </svg>`;
+    }
+    function svgFollowFilled() {
+      return `<svg xmlns="http://www.w3.org/2000/svg" class="bi bi-person-fill-x" viewBox="0 0 16 16">
+        <path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0m-9 8c0 1 1 1 1 1h5.256A4.5 4.5 0 0 1 8 12.5a4.5 4.5 0 0 1 1.544-3.393Q8.844 9.002 8 9c-5 0-6 3-6 4" stroke-width="1"></path>
+        <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7m-.646-4.854.646.647.646-.647a.5.5 0 0 1 .708.708l-.647.646.647.646a.5.5 0 0 1-.708.708l-.646-.647-.646.647a.5.5 0 0 1-.708-.708l.647-.646-.647-.646a.5.5 0 0 1 .708-.708" stroke-width="1"></path>
+      </svg>`;
+    }
+    function svgEditIcon() {
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+             fill="none" stroke="#1976d2" stroke-linecap="round" stroke-linejoin="round"
+             style="fill:none !important; stroke:#1976d2 !important;"
+             height="24" width="24">
+          <path d="M7 7H6a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" stroke-width="2"></path>
+          <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97L9 12v3h3l8.385 -8.415z" stroke-width="2"></path>
+          <path d="m16 5 3 3" stroke-width="2"></path>
+        </svg>`;
+    }
+
+    // === Load following list for current user ===
+    async function loadFollowingForCurrentUser() {
+      followingSet = new Set();
+      const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+      if (!currentUser || !currentUser.username) return;
+      try {
+        const res = await fetch(`${API_URL}?followingFor=${encodeURIComponent(currentUser.username)}`);
+        const data = await res.json();
+        const list = data.following || [];
+        list.forEach(id => followingSet.add(String(id)));
+      } catch (err) {
+        console.warn("Could not load following list:", err);
+      }
+    }
+
+    function parseBackendDate(dateStr) {
+      if (!dateStr) return "Invalid date";
+    
+      // If it's already a Date object
+      if (dateStr instanceof Date)
+        return dateStr.toLocaleString("en-GB", { hour12: true });
+    
+      // Try native parsing (works for ISO like 2025-10-22T08:24:18.000Z)
+      const tryNative = new Date(dateStr);
+      if (!isNaN(tryNative))
+        return tryNative.toLocaleString("en-GB", { hour12: true });
+    
+      // Manual parse for DD/MM/YYYY HH:mm:ss
+      const parts = dateStr.split(" ");
+      const datePart = parts[0] || "";
+      const timePart = parts[1] || "00:00:00";
+      const [d, m, y] = datePart.split(/[\/\-]/).map(Number);
+      if (!d || !m || !y) return "Invalid date";
+    
+      const parsed = new Date(
+        `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T${timePart}`
+      );
+      if (isNaN(parsed)) return "Invalid date";
+    
+      return parsed.toLocaleString("en-GB", { hour12: true });
+    }
+
+    async function loadProfile() {
+      if (!id) {
+        document.body.innerHTML = "<p>User ID not provided.</p>";
+        return;
+      }
+
+      document.getElementById("postsTab").href = `user.html?id=${id}`;
+      document.getElementById("followingTab").href = `following.html?id=${id}`;
+      document.getElementById("followersTab").href = `followers.html?id=${id}`;
+
+      const res = await fetch(`${API_URL}?type=user&id=${id}`);
+      const data = await res.json();
+      if (data.error) {
+        document.body.innerHTML = `<p>${data.error}</p>`;
+        return;
+      }
+
+      const user = data.user;
+      document.getElementById("username").innerHTML =
+        `${user.name} <a href="user.html?id=${user.id}&from=user.html">@${user.username}</a>`;
+      document.getElementById("bio").textContent = user.bio || "No bio provided.";
+      document.getElementById("dateCreated").innerHTML = `<em>Date joined: ${parseBackendDate(user.created) || "—"}</em>`;
+
+      if (data.counts) {
+        document.getElementById("postsTab").textContent = `${data.counts.posts} Posts`;
+        document.getElementById("followingTab").textContent = `${data.counts.following} Following`;
+        document.getElementById("followersTab").textContent = `${data.counts.followers} Followers`;
+      }
+
+      // Handle follow button
+      await renderFollowButton(user);
+
+      allPosts = data.posts || [];
+      renderPosts(allPosts);
+    }
+
+    async function renderFollowButton(viewedUser) {
+      const button = document.getElementById("followBtn");
+      const loggedIn = JSON.parse(localStorage.getItem("user") || "null");
+      if (!loggedIn || !loggedIn.username) return;
+
+      await loadFollowingForCurrentUser();
+
+      const isMe = String(loggedIn.pk_user_id) === String(viewedUser.id);
+      button.style.display = "inline-flex";
+      
+      if (isMe) {
+        // Show edit button instead of hiding it
+        button.innerHTML = svgEditIcon();
+        button.title = "Edit Profile";
+        button.onclick = () => {
+          window.location.href = "edit.html";
+        };
+        return;
+      }
+
+      const followed = followingSet.has(String(viewedUser.id));
+      button.style.display = "inline-flex";
+      button.innerHTML = followed ? svgFollowFilled() : svgFollowOutline();
+      button.setAttribute("aria-pressed", followed);
+
+      button.onclick = async () => {
+        button.classList.add("loading");
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: SECRET_KEY,
+              action: "follow",
+              followerId: loggedIn.pk_user_id,
+              followedId: viewedUser.id
+            })
+          });
+          const result = await res.json();
+          button.classList.remove("loading");
+          if (result.success) {
+            const nowFollowed = !!result.followed;
+            button.innerHTML = nowFollowed ? svgFollowFilled() : svgFollowOutline();
+            button.setAttribute("aria-pressed", nowFollowed);
+            if (nowFollowed) followingSet.add(String(viewedUser.id));
+            else followingSet.delete(String(viewedUser.id));
+          } else {
+            alert(result.error || "Follow action failed.");
+          }
+        } catch (err) {
+          button.classList.remove("loading");
+          alert("Could not follow user: " + err.message);
+        }
+      };
+    }
+
+    function renderPosts(posts) {
+      const container = document.getElementById("posts");
+      if (!posts.length) {
+        container.innerHTML = "<p>No posts yet.</p>";
+        return;
+      }
+      container.innerHTML = posts.map(p => `
+        <div class="post" onclick="window.location.href='post.html?id=${p.id}&from=user.html?id=${id}'">
+          <div class="post-header">${p.name || "Unknown"} 
+            <a href="user.html?id=${p.userId}&from=user.html">@${p.username}</a>
+          </div>
+          <div class="post-message">${p.message}</div>
+          <small>${parseBackendDate(p.timestamp)}</small>
+        </div>
+      `).join("");
+    }
+
+    function filterPosts() {
+      const term = document.getElementById("search").value.toLowerCase();
+      const filtered = allPosts.filter(p =>
+        (p.message || "").toLowerCase().includes(term) ||
+        (p.username || "").toLowerCase().includes(term) ||
+        (p.name || "").toLowerCase().includes(term)
+      );
+      renderPosts(filtered);
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

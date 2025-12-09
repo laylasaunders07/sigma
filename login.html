@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <style>
+    body { font-family: system-ui; margin: 2em; }
+    .hidden { display: none; }
+    input { display: block; margin: 0.5em 0; padding: 0.5em; width: 200px; }
+    button { padding: 0.5em 1em; }
+    /* Back link styling */
+    #backLink {
+      display: inline-block;
+      margin-bottom: 1em;
+      font-size: 1.1em;
+      color: #007bff;
+      text-decoration: none;
+    }
+    #backLink:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <a id="backLink" href="index.html">← Back</a>
+  <h1>Login</h1>
+
+  <div id="login-form">
+    <input id="username" placeholder="Username" required />
+    <input id="password" type="password" placeholder="Password" required />
+    <button id="login-btn">Login</button>
+    <p id="error" style="color:red"></p>
+    <p>⚠️ IMPORTANT ⚠️ Please note:<br>
+      this website is a proof of concept,<br>
+      the database is not secure,<br>
+      do not enter sensitive information.<br>
+      for behind the scenes, visit laylasaunders.co.uk<br><br>
+      also the site is slow, give it time.<br>
+      everything should be functional,<br>
+      if you find a bug please post about it x
+    </p>
+  </div>
+
+  <div id="welcome" class="hidden">
+    <h2>Welcome, <span id="user-name"></span>!</h2>
+    <button id="logout-btn">Logout</button>
+  </div>
+
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const SECRET_KEY = "alva-the-fortnite-god";
+
+    const form = document.getElementById("login-form");
+    const btn = document.getElementById("login-btn");
+    const err = document.getElementById("error");
+    const welcome = document.getElementById("welcome");
+    const unameSpan = document.getElementById("user-name");
+    const logoutBtn = document.getElementById("logout-btn");
+
+    // Check for existing login on load
+    const stored = localStorage.getItem("user");
+    if (stored) showWelcome(JSON.parse(stored));
+
+    btn.onclick = async () => {
+      err.textContent = "";
+      btn.disabled = true;
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: SECRET_KEY,
+            action: "login",
+            username,
+            password
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Login failed");
+        localStorage.setItem("user", JSON.stringify(data.user));
+        showWelcome(data.user);
+      } catch (e) {
+        err.textContent = e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    logoutBtn.onclick = () => {
+      localStorage.removeItem("user");
+      form.classList.remove("hidden");
+      welcome.classList.add("hidden");
+    };
+
+    function showWelcome(user) {
+      unameSpan.textContent = user.name || user.username;
+      form.classList.add("hidden");
+      welcome.classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>

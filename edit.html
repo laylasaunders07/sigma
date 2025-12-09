@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Profile</title>
+  <style>
+    body { font-family: system-ui; margin: 2em; }
+    .hidden { display: none; }
+    input, textarea { display: block; margin: 0.5em 0; padding: 0.5em; width: 200px; }
+    button { padding: 0.5em 1em; }
+    textarea { resize: vertical; height: 60px; }
+    #backLink {
+      display: inline-block;
+      margin-bottom: 1em;
+      font-size: 1.1em;
+      color: #007bff;
+      text-decoration: none;
+    }
+    #backLink:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <a id="backLink" href="#">← Back</a>
+  <h1>Edit Profile</h1>
+
+  <div id="edit-form">
+    <input id="name" placeholder="New Display Name (optional)" />
+    <textarea id="bio" placeholder="New Bio (optional)"></textarea>
+    <button id="save-btn">Save Changes</button>
+    <p id="error" style="color:red"></p>
+  </div>
+
+  <div id="success" class="hidden">
+    <h2>Profile Updated</h2>
+    <p>Your profile has been successfully updated.</p>
+    <button id="back-btn">Back to Profile</button>
+  </div>
+
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const SECRET_KEY = "alva-the-fortnite-god";
+
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    const backLink = document.getElementById("backLink");
+    const errorEl = document.getElementById("error");
+    const saveBtn = document.getElementById("save-btn");
+    const successDiv = document.getElementById("success");
+    const editForm = document.getElementById("edit-form");
+    const backBtn = document.getElementById("back-btn");
+
+    if (!user || !user.username) {
+      alert("You must be logged in to edit your profile.");
+      window.location.href = "login.html";
+    }
+
+    // Set back link to go to user.html?id=USER_ID
+    backLink.href = `user.html?id=${encodeURIComponent(user.pk_user_id)}`;
+
+    saveBtn.onclick = async () => {
+      errorEl.textContent = "";
+      saveBtn.disabled = true;
+
+      const name = document.getElementById("name").value.trim();
+      const bio = document.getElementById("bio").value.trim();
+
+      if (!name && !bio) {
+        errorEl.textContent = "Please enter a new display name or bio.";
+        saveBtn.disabled = false;
+        return;
+      }
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: SECRET_KEY,
+            action: "editProfile",
+            username: user.username,
+            name,
+            bio
+          })
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Update failed.");
+
+        // Update localStorage with new values if changed
+        if (name) user.name = name;
+        if (bio) user.bio = bio;
+        localStorage.setItem("user", JSON.stringify(user));
+
+        editForm.classList.add("hidden");
+        successDiv.classList.remove("hidden");
+      } catch (e) {
+        errorEl.textContent = e.message;
+      } finally {
+        saveBtn.disabled = false;
+      }
+    };
+
+    backBtn.onclick = () => {
+      window.location.href = `user.html?id=${encodeURIComponent(user.pk_user_id)}`;
+    };
+  </script>
+</body>
+</html>

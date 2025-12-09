@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Create Account</title>
+  <style>
+    body { font-family: system-ui; margin: 2em; }
+    .hidden { display: none; }
+    input, textarea { display: block; margin: 0.5em 0; padding: 0.5em; width: 200px; }
+    button { padding: 0.5em 1em; }
+    textarea { resize: vertical; height: 60px; }
+    /* Back link styling */
+    #backLink {
+      display: inline-block;
+      margin-bottom: 1em;
+      font-size: 1.1em;
+      color: #007bff;
+      text-decoration: none;
+    }
+    #backLink:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <a id="backLink" href="index.html">← Back</a>
+  <h1>Create Account</h1>
+
+  <div id="create-form">
+    <input id="username" placeholder="Username" required />
+    <input id="password" type="password" placeholder="Password" required />
+    <input id="name" placeholder="Display Name" required />
+    <textarea id="bio" placeholder="Bio (optional)"></textarea>
+    <button id="create-btn">Create Account</button>
+    <p id="error" style="color:red"></p>
+  </div>
+
+  <div id="welcome" class="hidden">
+    <h2>Welcome, <span id="user-name"></span>!</h2>
+    <p>Account created successfully.</p>
+    <button id="logout-btn">Logout</button>
+  </div>
+
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const SECRET_KEY = "alva-the-fortnite-god";
+
+    const form = document.getElementById("create-form");
+    const btn = document.getElementById("create-btn");
+    const err = document.getElementById("error");
+    const welcome = document.getElementById("welcome");
+    const unameSpan = document.getElementById("user-name");
+    const logoutBtn = document.getElementById("logout-btn");
+
+    btn.onclick = async () => {
+      err.textContent = "";
+      btn.disabled = true;
+
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const name = document.getElementById("name").value.trim();
+      const bio = document.getElementById("bio").value.trim();
+
+      if (!username || !password || !name) {
+        err.textContent = "Please fill in all required fields.";
+        btn.disabled = false;
+        return;
+      }
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: SECRET_KEY,
+            action: "createAccount",
+            username,
+            password,
+            name,
+            bio
+          })
+        });
+
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Account creation failed");
+
+        // Save new user to localStorage and show welcome
+        localStorage.setItem("user", JSON.stringify(data.user));
+        showWelcome(data.user);
+      } catch (e) {
+        err.textContent = e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    logoutBtn.onclick = () => {
+      localStorage.removeItem("user");
+      form.classList.remove("hidden");
+      welcome.classList.add("hidden");
+    };
+
+    function showWelcome(user) {
+      unameSpan.textContent = user.name || user.username;
+      form.classList.add("hidden");
+      welcome.classList.remove("hidden");
+    }
+  </script>
+</body>
+</html>

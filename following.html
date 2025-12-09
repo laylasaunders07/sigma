@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Following</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2em; max-width: 600px; }
+    a { color: #1976d2; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    #backLink { display: inline-block; margin-bottom: 1em; }
+
+    .profile-card {
+      background: #e3f2fd;
+      padding: 1em;
+      border-radius: 8px;
+      margin-bottom: 1em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #username { font-size: 1.4em; margin-bottom: 0.2em; }
+    #bio { font-size: 1.05em; margin-bottom: 0.5em; }
+    #dateCreated { font-size: 0.9em; color: #555; }
+
+    .post {
+      background: #f5f5f5;
+      padding: 0.8em;
+      margin: 0.5em 0;
+      border-radius: 6px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+    .post:hover { background: #e3f2fd !important; }
+    .post-header { font-weight: bold; font-size: 1.1em; }
+    .post-header a { margin-left: 0.5em; font-weight: normal; }
+    small { color: gray; font-size: 0.85em; }
+
+    .follow-btn {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.3s ease;
+    }
+    .follow-btn:hover { background: rgba(25,118,210,0.12); }
+    .follow-btn svg { width: 20px; height: 20px; fill: #1976d2; }
+
+    .tabs { display: flex; align-items: center; gap: 2em; margin: 1.2em 0 1em 0; font-size: 1.25em; }
+    .tabs a { color: black; text-decoration: none; font-weight: normal; }
+    .tabs a:hover { font-weight: bold; color: black; }
+    .tabs a.active { font-weight: bold; color: black; cursor: default; }
+
+    #search { width: 100%; padding: 0.6em; margin: 0.5em 0 1em 0; border-radius: 6px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <a id="backLink" href="#">← Back</a>
+  <script>
+    const URLparams = new URLSearchParams(window.location.search);
+    const from = URLparams.get("from") || "index.html";
+    document.getElementById("backLink").href = from;
+  </script>
+
+  <div class="profile-card">
+    <div>
+      <h1 id="username"></h1>
+      <p id="bio"></p>
+      <p id="dateCreated"><em>Date joined: [placeholder]</em></p>
+    </div>
+    <button id="followBtn" class="follow-btn" style="display:none;"></button>
+  </div>
+
+  <div class="tabs">
+    <a href="#" id="postsTab">Posts</a>
+    <a href="#" id="followingTab" class="active">Following</a>
+    <a href="#" id="followersTab">Followers</a>
+  </div>
+
+  <input type="text" id="search" placeholder="Search people..." oninput="filterList()">
+  <div id="posts"></div>
+
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const SECRET_KEY = "alva-the-fortnite-god";
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    let allList = [];
+
+    function parseBackendDate(dateStr) {
+      if (!dateStr) return "Invalid date";
+    
+      // If it's already a Date object
+      if (dateStr instanceof Date)
+        return dateStr.toLocaleString("en-GB", { hour12: true });
+    
+      // Try native parsing (works for ISO like 2025-10-22T08:24:18.000Z)
+      const tryNative = new Date(dateStr);
+      if (!isNaN(tryNative))
+        return tryNative.toLocaleString("en-GB", { hour12: true });
+    
+      // Manual parse for DD/MM/YYYY HH:mm:ss
+      const parts = dateStr.split(" ");
+      const datePart = parts[0] || "";
+      const timePart = parts[1] || "00:00:00";
+      const [d, m, y] = datePart.split(/[\/\-]/).map(Number);
+      if (!d || !m || !y) return "Invalid date";
+    
+      const parsed = new Date(
+        `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T${timePart}`
+      );
+      if (isNaN(parsed)) return "Invalid date";
+    
+      return parsed.toLocaleString("en-GB", { hour12: true });
+    }
+
+    async function loadProfile() {
+      const res = await fetch(`${API_URL}?type=user&id=${id}`);
+      const data = await res.json();
+      if (data.error) {
+        document.body.innerHTML = `<p>${data.error}</p>`;
+        return;
+      }
+
+      const user = data.user;
+      document.getElementById("username").innerHTML =
+        `${user.name} <a href="user.html?id=${user.id}&from=following.html">@${user.username}</a>`;
+      document.getElementById("bio").textContent = user.bio || "No bio provided.";
+      document.getElementById("dateCreated").innerHTML = `<em>Date joined: ${parseBackendDate(user.created) || "—"}</em>`;
+
+      if (data.counts) {
+        document.getElementById("postsTab").textContent = `${data.counts.posts} Posts`;
+        document.getElementById("followingTab").textContent = `${data.counts.following} Following`;
+        document.getElementById("followersTab").textContent = `${data.counts.followers} Followers`;
+      }
+
+      document.getElementById("postsTab").href = `user.html?id=${id}`;
+      document.getElementById("followingTab").href = `following.html?id=${id}`;
+      document.getElementById("followersTab").href = `followers.html?id=${id}`;
+
+      loadFollowing(user.username);
+    }
+
+    async function loadFollowing(username) {
+      const res = await fetch(`${API_URL}?followingDetailsFor=${encodeURIComponent(username)}`);
+      const data = await res.json();
+      allList = data.following || [];
+      renderList(allList);
+    }
+
+    function renderList(list) {
+      const container = document.getElementById("posts");
+      if (!list.length) {
+        container.innerHTML = "<p>Not following anyone yet.</p>";
+        return;
+      }
+      container.innerHTML = list.map(p => `
+        <div class="post" onclick="window.location.href='user.html?id=${p.id}&from=following.html?id=${id}'">
+          <div class="post-header">${p.name || "Unknown"} 
+            <a href="user.html?id=${p.id}&from=following.html">@${p.username}</a>
+          </div>
+          <small>${parseBackendDate(p.timestamp)}</small>
+        </div>
+      `).join("");
+    }
+
+    function filterList() {
+      const term = document.getElementById("search").value.toLowerCase();
+      const filtered = allList.filter(p =>
+        (p.username || "").toLowerCase().includes(term) ||
+        (p.name || "").toLowerCase().includes(term)
+      );
+      renderList(filtered);
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Home</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 2em;
+      max-width: 600px;
+    }
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    h1, h3 {
+      margin-top: 1em;
+    }
+
+    /* post card container: use stretch so children fill height */
+    .post-card {
+      background: #e3f2fd;
+      border-radius: 12px;
+      padding: 0.6em 0.75em;      /* inner padding for the card */
+      margin-bottom: 1.5em;
+      display: flex;
+      gap: 0.6em;
+      align-items: stretch;       /* <--- important: lets textarea stretch vertically */
+      justify-content: space-between;
+      min-height: 56px;           /* compact height; will grow with textarea content */
+      box-shadow: none;           /* no shadow so textarea blends in */
+      box-sizing: border-box;
+    }
+    
+    /* textarea: take all remaining space and stretch fully */
+    .post-card textarea {
+      flex: 1;                    /* take remaining width */
+      min-height: 44px;           /* minimum editable height */
+      height: 100%;               /* fill the card vertically */
+      align-self: stretch;        /* ensure full height inside flex container */
+      background: transparent;    /* visually blend with card */
+      border: none;               /* no border */
+      outline: none;
+      resize: none;               /* optional: disallow manual resize to preserve layout */
+      padding: 0;                 /* no internal padding so text aligns with card */
+      margin: 0;
+      line-height: 1.4;
+      font-family: inherit;
+      font-size: 1rem;
+      color: #111;
+      box-sizing: border-box;
+      overflow: auto;             /* scroll if multiple lines exceed container */
+    }
+    
+    /* button: fixed size, right side, vertically centered */
+    .post-card button {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      background: none;
+      border: none;
+      padding: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      align-self: center;
+      transition: background 0.12s ease, transform 0.3s ease;
+    }
+    
+    /* hover effect for button */
+    .post-card button:hover {
+      background: rgba(25,118,210,0.12);
+    }
+    
+    /* svg icon base */
+    .post-card button svg {
+      width: 22px;
+      height: 22px;
+      fill: #1976d2;
+      transition: opacity 0.3s ease, transform 0.6s ease;
+    }
+    
+    /* loading (spinning + shaded) */
+    .post-card button.loading svg {
+      opacity: 0.6;
+      filter: grayscale(1);
+      animation: spin 0.6s linear infinite;
+    }
+    
+    /* spin animation */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .message {
+      position: relative;
+      padding-right: 3em; /* space for like button */
+    }
+    
+    .message .like-btn {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      margin-right: 4px; /* ✅ fixes right cutoff */
+      background: none;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.3s ease;
+    }
+    
+    .message .like-btn:hover {
+      background: rgba(25,118,210,0.12);
+    }
+    
+    .message .like-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: #1976d2;
+      transition: opacity 0.3s ease, transform 0.6s ease;
+    }
+    
+    .message .like-btn.loading svg {
+      opacity: 0.6;
+      filter: grayscale(1);
+      animation: spin 0.6s linear infinite;
+    }
+
+    #search {
+      width: 100%;
+      padding: 0.6em;
+      margin: 0.5em 0 1em 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    /* Posts feed */
+    .message {
+      background: #f5f5f5;
+      padding: 0.6em;
+      margin: 0.5em 0;
+      border-radius: 6px;
+    }
+
+    .post-header {
+      font-weight: bold;
+    }
+
+    small {
+      color: gray;
+    }
+
+    /* Hover highlight for all cards */
+    .post:hover,
+    .message:hover,
+    .user:hover,
+    .comment:hover {
+      background: #e3f2fd !important;
+      transition: background 0.2s ease;
+    }
+    
+    /* Tabs navigation */
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 2em;
+      margin: 1.2em 0 1em 0;
+      font-size: 1.25em;
+    }
+    
+    .tabs a {
+      color: black;
+      text-decoration: none;
+      font-weight: normal;
+      transition: font-weight 0.15s ease, color 0.15s ease;
+    }
+    
+    .tabs a:hover {
+      font-weight: bold;
+      color: black;
+    }
+    
+    .tabs a.active {
+      font-weight: bold;
+      color: black;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+  <h1>Home</h1>
+
+  <!-- Create Post / Login Prompt -->
+  <div id="createPostCard"></div>
+
+  <!-- Search + Posts -->
+  <div class="tabs">
+    <a href="index.html" class="active">Posts</a>
+    <a href="users.html">Users</a>
+  </div>
+  <input type="text" id="search" placeholder="Search posts..." oninput="filterMessages()">
+  <div id="messages"></div>
+
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const SECRET_KEY = "alva-the-fortnite-god";
+    let allMessages = [];
+
+    // Initialize page
+    loadMessages();
+    setupPostCard();
+
+    // --- RENDER POST CARD OR LOGIN PROMPT ---
+    function setupPostCard() {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+
+      // Check if logged in user is 'alva'
+      if (user && user.username && user.username !== "alva") {
+        container.innerHTML = `
+          <div class="post-card" style="text-align:center;">
+            <div style="width:100%;">
+              <p>Only 'alva' can post messages.</p>
+              <p>Logged in as: ${user.username}</p>
+              <p><a href="login.html">Logout</a></p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+    
+      if (!user || !user.username) {
+        container.innerHTML = `
+          <div class="post-card" style="text-align:center;">
+            <div style="width:100%;">
+              <p>You need to be logged in to post.</p>
+              <p>
+                <a href="login.html">Login</a> or
+                <a href="create.html">Create an Account</a>
+              </p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+    
+      container.innerHTML = `
+        <form id="form" class="post-card">
+          <textarea id="message" placeholder="Share something..." required></textarea>
+          <button type="submit" title="Post">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+              <path d="M12 0a12 12 0 1 0 12 12A12 12 0 0 0 12 0Zm4.91 10.41A1 1 0 0 1 16 11h-2.25a0.25 0.25 0 0 0 -0.25 0.25v7.25a1.5 1.5 0 0 1 -3 0v-7.25a0.25 0.25 0 0 0 -0.25 -0.25H8a1 1 0 0 1 -0.75 -1.66l4 -4.5a1 1 0 0 1 1.5 0l4 4.5a1 1 0 0 1 0.16 1.07Z"></path>
+            </svg>
+          </button>
+        </form>
+      `;
+    
+      const form = document.getElementById("form");
+      const loading = document.getElementById("loading");
+      const button = form.querySelector("button");
+    
+      form.addEventListener("submit", async e => {
+        e.preventDefault();
+      
+        const button = form.querySelector("button");
+        const messageInput = document.getElementById("message");
+        const messageText = messageInput.value.trim();
+      
+        if (!messageText) {
+          alert("Please enter a message before posting.");
+          return;
+        }
+      
+        // Start loading state (dim + spin)
+        button.disabled = true;
+        button.classList.add("loading");
+      
+        try {
+          await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: SECRET_KEY,
+              action: "post",
+              name: user.username,
+              message: messageText
+            })
+          });
+      
+          form.reset();
+          loadMessages();
+        } finally {
+          // End loading state
+          button.disabled = false;
+          button.classList.remove("loading");
+        }
+      });
+    }
+
+    // --- LOAD & RENDER MESSAGES ---
+    async function loadMessages() {
+      const res = await fetch(API_URL);
+      allMessages = await res.json();
+      renderMessages(allMessages);
+    }
+
+    async function renderMessages(data) {
+      const container = document.getElementById("messages");
+      container.innerHTML = "";
+    
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      let likedSet = new Set();
+    
+      // Fetch liked posts for current user (if logged in)
+      if (user && user.username) {
+        try {
+          const res = await fetch(`${API_URL}?likesFor=${encodeURIComponent(user.username)}`);
+          const likeData = await res.json();
+          const likedPosts = likeData.likedPosts || []; // server returns an array of post IDs
+          // Normalize to strings to avoid type mismatch issues (number vs string)
+          likedSet = new Set(likedPosts.map(id => String(id)));
+        } catch (err) {
+          console.warn("Could not load liked posts:", err);
+          likedSet = new Set();
+        }
+      }
+    
+      data.forEach(msg => {
+        // Determine liked state using normalized string comparison
+        const isLiked = likedSet.has(String(msg.id));
+    
+        const div = document.createElement("div");
+        div.className = "message";
+        div.innerHTML = `
+          <div class="post-header" style="cursor: default;">
+            <strong>${msg.name || "Unknown User"}</strong>
+            <a href="user.html?id=${encodeURIComponent(msg.userId)}&from=index.html" style="color: #007bff;">
+              @${msg.username}
+            </a>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div class="post-message" style="flex:1;">${msg.message}</div>
+            <button class="like-btn" title="Like" data-postid="${msg.id}" aria-pressed="${isLiked}">
+              ${isLiked ? likedHeartSVG() : unlikedHeartSVG()}
+            </button>
+          </div>
+          <small>${(msg.likes || 0)} Like${(msg.likes || 0) === 1 ? '' : 's'}</small>
+        `;
+    
+        // Clicking anywhere (except button) opens post
+        div.addEventListener("click", e => {
+          if (e.target.closest(".like-btn")) return;
+          if (e.target.tagName.toLowerCase() !== "a") {
+            window.location.href = `post.html?id=${msg.id}&from=index.html`;
+          }
+        });
+    
+        // Button click logic
+        const likeButton = div.querySelector(".like-btn");
+        likeButton.addEventListener("click", async e => {
+          e.preventDefault();
+          e.stopPropagation();
+    
+          const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+          if (!currentUser || !currentUser.username) {
+            alert("You need to be logged in to like posts.");
+            return;
+          }
+    
+          likeButton.classList.add("loading");
+    
+          try {
+            const res = await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                key: SECRET_KEY,
+                action: "like",
+                postId: msg.id,
+                username: currentUser.username
+              })
+            });
+    
+            const result = await res.json();
+            likeButton.classList.remove("loading");
+    
+            if (result.error) {
+              alert(result.error);
+              return;
+            }
+    
+            // Update button SVG & aria-pressed based on backend result
+            if (result.liked) {
+              likeButton.innerHTML = likedHeartSVG();
+              likeButton.setAttribute("aria-pressed", "true");
+              likedSet.add(String(msg.id));
+            } else {
+              likeButton.innerHTML = unlikedHeartSVG();
+              likeButton.setAttribute("aria-pressed", "false");
+              likedSet.delete(String(msg.id));
+            }
+    
+            // Update like count text (use result.likeCount if backend returns it, otherwise adjust locally)
+            const likeLabel = div.querySelector("small");
+            let newCount = null;
+            if (typeof result.likeCount !== "undefined") {
+              newCount = Number(result.likeCount);
+            } else {
+              // adjust client-side: increment or decrement based on result.liked
+              const current = Number(msg.likes || 0);
+              newCount = result.liked ? current + 1 : Math.max(0, current - 1);
+            }
+            msg.likes = newCount;
+            if (likeLabel) {
+              likeLabel.textContent = `${msg.likes} Like${msg.likes === 1 ? '' : 's'}`;
+            }
+          } catch (err) {
+            likeButton.classList.remove("loading");
+            alert("Failed to like post: " + err.message);
+          }
+        });
+    
+        container.appendChild(div);
+      });
+    }
+    
+    function unlikedHeartSVG() {
+      return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22">
+        <path fill="none" stroke="#1976d2" stroke-width="2" d="M12 21s-7.5-4.65-10-9.5C.4 6.44 2.6 3 6.2 3c1.9 0 3.5 1.1 4.3 2.7C11.3 4.1 12.9 3 14.8 3c3.6 0 5.8 3.44 4.2 8.5C19.5 16.35 12 21 12 21z"/>
+      </svg>`;
+    }
+    
+    function likedHeartSVG() {
+      return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22">
+        <path fill="#1976d2" d="M12 21s-7.5-4.65-10-9.5C.4 6.44 2.6 3 6.2 3c1.9 0 3.5 1.1 4.3 2.7C11.3 4.1 12.9 3 14.8 3c3.6 0 5.8 3.44 4.2 8.5C19.5 16.35 12 21 12 21z"/>
+      </svg>`;
+    }
+
+    function filterMessages() {
+      const term = document.getElementById("search").value.toLowerCase();
+      const filtered = allMessages.filter(m =>
+        (m.message || "").toLowerCase().includes(term) ||
+        (m.username || "").toLowerCase().includes(term) ||
+        (m.name || "").toLowerCase().includes(term)
+      );
+      renderMessages(filtered);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>All Users</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 2em;
+      max-width: 600px;
+    }
+    a { color: #1976d2; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    h1, h3 { margin-top: 1em; }
+
+    .user-card {
+      background: #e3f2fd;
+      border-radius: 12px;
+      padding: 1em;
+      margin-bottom: 1.5em;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .user-info { flex-grow: 1; }
+    .user-header { font-size: 1.2em; font-weight: 600; }
+    .user-header a { margin-left: 0.4em; font-weight: 400; font-size: 0.95em; color: #1976d2; }
+    .user-bio { margin: 0.3em 0; font-size: 0.95em; color: #333; }
+    .user-followers { font-size: 0.85em; color: gray; }
+
+    #searchUsers {
+      width: 100%;
+      padding: 0.6em;
+      margin: 0.5em 0 1em 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .user {
+      background: #f5f5f5;
+      padding: 0.8em;
+      margin: 0.5em 0;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: default; /* normal cursor for whole card */
+      transition: background 0.2s ease;
+    }
+    .user:hover { background: #e3f2fd !important; }
+    .user strong { font-size: 1.05em; }
+    .user small { color: gray; }
+
+    .follow-btn, .logout-btn {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.3s ease;
+    }
+    .follow-btn:hover, .logout-btn:hover { background: rgba(25,118,210,0.12); }
+    .follow-btn svg, .logout-btn svg { width: 20px; height: 20px; fill: #1976d2; }
+    .follow-btn.loading svg {
+      opacity: 0.6;
+      filter: grayscale(1);
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 2em;
+      margin: 1.2em 0 1em 0;
+      font-size: 1.25em;
+    }
+    .tabs a { color: black; text-decoration: none; font-weight: normal; transition: font-weight 0.15s ease; }
+    .tabs a:hover { font-weight: bold; color: black; }
+    .tabs a.active { font-weight: bold; color: black; cursor: default; }
+  </style>
+</head>
+<body>
+  <h1>All Users</h1>
+
+  <div id="loggedInCard"></div>
+
+  <div class="tabs">
+    <a href="index.html">Posts</a>
+    <a href="users.html" class="active">Users</a>
+  </div>
+  
+  <input type="text" id="searchUsers" placeholder="Search users..." oninput="filterUsers()">
+  <div id="users"></div>
+
+  <script>
+  const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+  const SECRET_KEY = "alva-the-fortnite-god";
+  let allUsers = [];
+  let followingSet = new Set();
+
+  function svgLogout() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" fill="#000000" class="bi bi-person-dash" viewBox="0 0 16 16" height="16" width="16">
+      <path d="M12.5 16a3.5 3.5 0 1 0 0 -7 3.5 3.5 0 0 0 0 7M11 12h3a0.5 0.5 0 0 1 0 1h-3a0.5 0.5 0 0 1 0 -1m0 -7a3 3 0 1 1 -6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0 -4 2 2 0 0 0 0 4"></path>
+      <path d="M8.256 14a4.5 4.5 0 0 1 -0.229 -1.004H3c0.001 -0.246 0.154 -0.986 0.832 -1.664C4.484 10.68 5.711 10 8 10q0.39 0 0.74 0.025c0.226 -0.341 0.496 -0.65 0.804 -0.918Q8.844 9.002 8 9c-5 0 -6 3 -6 4s1 1 1 1z"></path>
+    </svg>`;
+  }
+  
+  function svgFollowOutline() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" fill="#000000" class="bi bi-person-check" viewBox="0 0 16 16" height="16" width="16">
+      <path d="M12.5 16a3.5 3.5 0 1 0 0 -7 3.5 3.5 0 0 0 0 7m1.679 -4.493 -1.335 2.226a0.75 0.75 0 0 1 -1.174 0.144l-0.774 -0.773a0.5 0.5 0 0 1 0.708 -0.708l0.547 0.548 1.17 -1.951a0.5 0.5 0 1 1 0.858 0.514M11 5a3 3 0 1 1 -6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0 -4 2 2 0 0 0 0 4"></path>
+      <path d="M8.256 14a4.5 4.5 0 0 1 -0.229 -1.004H3c0.001 -0.246 0.154 -0.986 0.832 -1.664C4.484 10.68 5.711 10 8 10q0.39 0 0.74 0.025c0.226 -0.341 0.496 -0.65 0.804 -0.918Q8.844 9.002 8 9c-5 0 -6 3 -6 4s1 1 1 1z"></path>
+    </svg>`;
+  }
+  
+  function svgFollowFilled() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" fill="#000000" class="bi bi-person-fill-x" viewBox="0 0 16 16" height="16" width="16">
+      <path d="M11 5a3 3 0 1 1 -6 0 3 3 0 0 1 6 0m-9 8c0 1 1 1 1 1h5.256A4.5 4.5 0 0 1 8 12.5a4.5 4.5 0 0 1 1.544 -3.393Q8.844 9.002 8 9c-5 0 -6 3 -6 4" stroke-width="1"></path>
+      <path d="M12.5 16a3.5 3.5 0 1 0 0 -7 3.5 3.5 0 0 0 0 7m-0.646 -4.854 0.646 0.647 0.646 -0.647a0.5 0.5 0 0 1 0.708 0.708l-0.647 0.646 0.647 0.646a0.5 0.5 0 0 1 -0.708 0.708l-0.646 -0.647 -0.646 0.647a0.5 0.5 0 0 1 -0.708 -0.708l0.647 -0.646 -0.647 -0.646a0.5 0.5 0 0 1 0.708 -0.708" stroke-width="1"></path>
+    </svg>`;
+  }
+
+  async function loadUsers() {
+    // show top card as soon as possible
+    await loadLoggedInUser();
+
+    // then load following list (so buttons render correctly)
+    await loadFollowingForCurrentUser();
+
+    // then load users list and render
+    try {
+      const res = await fetch(`${API_URL}?type=users`);
+      allUsers = await res.json();
+    } catch (err) {
+      console.error("Failed to load users", err);
+      allUsers = [];
+    }
+    renderUsers(allUsers);
+  }
+
+  // safe fetch for following list — won't throw if backend returns non-JSON
+  async function loadFollowingForCurrentUser() {
+    followingSet = new Set();
+    const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+    if (!currentUser || !currentUser.username) return;
+
+    const url = `${API_URL}?followingFor=${encodeURIComponent(currentUser.username)}`;
+    try {
+      const res = await fetch(url);
+      const contentType = res.headers.get("content-type") || "";
+
+      if (!res.ok) {
+        const txt = await res.text();
+        console.warn("followingFor fetch returned non-OK:", res.status, txt);
+        return;
+      }
+
+      if (!contentType.includes("application/json")) {
+        const txt = await res.text();
+        console.warn("followingFor returned non-JSON response:", txt);
+        return;
+      }
+
+      const data = await res.json();
+      const list = data.following || data.followedIds || data.followingIds || [];
+      list.forEach(id => followingSet.add(String(id)));
+    } catch (err) {
+      console.warn("Could not load following list:", err);
+    }
+  }
+
+  function renderUsers(users) {
+    const loggedInUser = JSON.parse(localStorage.getItem("user") || "null");
+    const container = document.getElementById("users");
+
+    container.innerHTML = users.map(u => {
+      const isMe = loggedInUser && String(loggedInUser.pk_user_id) === String(u.id);
+      let buttonHtml = "";
+      if (!isMe) {
+        const followed = followingSet.has(String(u.id));
+        buttonHtml = `
+          <button class="follow-btn" data-userid="${u.id}" aria-pressed="${followed}">
+            ${followed ? svgFollowFilled() : svgFollowOutline()}
+          </button>
+        `;
+      }
+
+      return `
+        <div class="user">
+          <div style="flex-grow:1;">
+            <strong>${u.name || u.username}</strong>
+            <a href="user.html?id=${u.id}&from=users.html">@${u.username}</a><br>
+            <em>${u.bio || "No bio yet"}</em><br>
+            <small class="user-followers">${u.followers} Follower${u.followers === 1 ? '' : 's'}</small>
+          </div>
+          ${buttonHtml}
+        </div>
+      `;
+    }).join("");
+
+    attachFollowButtonHandlers();
+  }
+
+  function attachFollowButtonHandlers() {
+    const buttons = document.querySelectorAll(".follow-btn");
+    buttons.forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const userData = JSON.parse(localStorage.getItem("user") || "null");
+        if (!userData) {
+          alert("Please log in to follow users.");
+          return;
+        }
+
+        const followerId = userData.pk_user_id;
+        const followedId = btn.getAttribute("data-userid");
+
+        btn.classList.add("loading");
+
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: SECRET_KEY,
+              action: "follow",
+              followerId,
+              followedId
+            })
+          });
+
+          const data = await res.json();
+          btn.classList.remove("loading");
+
+          if (data && data.success) {
+            const nowFollowed = !!data.followed;
+            btn.innerHTML = nowFollowed ? svgFollowFilled() : svgFollowOutline();
+            btn.setAttribute("aria-pressed", nowFollowed);
+            if (nowFollowed) followingSet.add(String(followedId));
+            else followingSet.delete(String(followedId));
+          } else {
+            alert(data && data.error ? data.error : "Unexpected response from server.");
+          }
+        } catch (err) {
+          btn.classList.remove("loading");
+          alert("Follow/unfollow failed: " + err.message);
+        }
+      });
+    });
+  }
+
+  function filterUsers() {
+    const term = document.getElementById("searchUsers").value.toLowerCase();
+    const filtered = allUsers.filter(u =>
+      (u.username || "").toLowerCase().includes(term) ||
+      (u.name || "").toLowerCase().includes(term) ||
+      (u.bio || "").toLowerCase().includes(term)
+    );
+    renderUsers(filtered);
+  }
+
+  async function loadLoggedInUser() {
+    const userData = JSON.parse(localStorage.getItem("user") || "null");
+    const container = document.getElementById("loggedInCard");
+
+    if (!userData || !userData.username) {
+      container.innerHTML = `
+        <div class="user-card" style="text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;">
+          <p>No user is currently logged in.</p>
+          <p><a href="login.html">Login</a> or <a href="create.html">Create an Account</a></p>
+        </div>`;
+      return;
+    }
+
+    // Best-effort fetch of user details; fail silently and render whatever we have locally
+    try {
+      const res = await fetch(`${API_URL}?type=users`);
+      const users = await res.json();
+      const me = users.find(u => u.username === userData.username) || {};
+
+      container.innerHTML = `
+        <div class="user-card">
+          <div class="user-info">
+            <div class="user-header">
+              <strong>${me.name || userData.name || userData.username}</strong>
+              <a href="user.html?id=${me.id || userData.pk_user_id}&from=users.html">@${userData.username}</a>
+            </div>
+            <div class="user-bio">${me.bio || userData.bio || "No bio yet"}</div>
+            <div class="user-followers">${me.followers ?? 0} Follower${me.followers === 1 ? '' : 's'}</div>
+          </div>
+          <button onclick="logout()" class="logout-btn" title="Log out">${svgLogout()}</button>
+        </div>`;
+    } catch (err) {
+      // fallback if fetch fails
+      container.innerHTML = `
+        <div class="user-card">
+          <div class="user-info">
+            <div class="user-header">
+              <strong>${userData.name || userData.username}</strong>
+              <a href="user.html?id=${userData.pk_user_id}&from=users.html">@${userData.username}</a>
+            </div>
+            <div class="user-bio">${userData.bio || "No bio yet"}</div>
+            <div class="user-followers">${me.followers ?? 0} Follower${me.followers === 1 ? '' : 's'}</div>
+          </div>
+          <button onclick="logout()" class="logout-btn" title="Log out">${svgLogout()}</button>
+        </div>`;
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("user");
+    window.location.href = "login.html";
+  }
+
+  // start
+  loadUsers();
+  </script>
+</body>
+</html>

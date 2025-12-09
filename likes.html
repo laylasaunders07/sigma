@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Post Likes</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2em; max-width: 600px; }
+    a { color: #007bff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Main post styling */
+    .post-main {
+      background: #e3f2fd;
+      padding: 1em;
+      margin: 1em 0;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .post-main .post-header {
+      font-size: 1.2em;
+      margin-bottom: 0.5em;
+    }
+    .post-main .post-header a {
+      font-size: 1em;
+      margin-left: 0.5em;
+      font-weight: normal;
+    }
+    .post-main .post-message { font-size: 1.1em; margin-bottom: 0.5em; }
+
+    /* Like cards styling */
+    .like-card {
+      background: #f5f5f5;
+      padding: 0.8em;
+      margin: 0.5em 0;
+      border-radius: 6px;
+      cursor: default;
+      transition: background 0.2s ease;
+    }
+    .like-card:hover { background: #e3f2fd !important; }
+    .like-card .post-header { font-size: 1.1em; margin-bottom: 0.3em; }
+    .like-card .post-header a {
+      font-size: 0.95em;
+      margin-left: 0.3em;
+      font-weight: normal;
+    }
+    small { color: gray; font-size: 0.85em; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 2em;
+      margin: 1.2em 0 1em 0;
+      font-size: 1.25em;
+    }
+    .tabs a {
+      color: black;
+      text-decoration: none;
+      font-weight: normal;
+      transition: font-weight 0.15s ease, color 0.15s ease;
+    }
+    .tabs a:hover { font-weight: bold; color: black; }
+    .tabs a.active { font-weight: bold; color: black; cursor: default; }
+  </style>
+</head>
+<body>
+  <a id="backLink" href="#">← Back</a>
+  <script>
+    const URLparams = new URLSearchParams(window.location.search);
+    const from = URLparams.get("from") || "index.html";
+    document.getElementById("backLink").href = from;
+  </script>
+
+  <div id="post"></div>
+
+  <!-- Tabs navigation -->
+  <div class="tabs">
+    <a id="commentsTab" href="#">Comments</a>
+    <a id="likesTab" href="#" class="active">Likes</a>
+  </div>
+
+  <!-- Search box for likes -->
+  <input 
+    type="text" 
+    id="searchLikes" 
+    placeholder="Search likes..." 
+    oninput="filterLikes()"
+    style="width: 100%; padding: 0.6em; margin: 0.5em 0; border-radius: 6px; border: 1px solid #ccc;"
+  >
+
+  <div id="likes"></div>
+  
+  <script>
+    const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get("id");
+    let allLikes = []; // ✅ properly declared once at top
+
+    function parseBackendDate(dateStr) {
+      if (!dateStr) return "Invalid date";
+    
+      // If it's already a Date object
+      if (dateStr instanceof Date)
+        return dateStr.toLocaleString("en-GB", { hour12: true });
+    
+      // Try native parsing first
+      const tryNative = new Date(dateStr);
+      if (!isNaN(tryNative))
+        return tryNative.toLocaleString("en-GB", { hour12: true });
+    
+      // Manual parse for DD/MM/YYYY HH:mm:ss
+      const parts = dateStr.split(" ");
+      const datePart = parts[0] || "";
+      const timePart = parts[1] || "00:00:00";
+      const [d, m, y] = datePart.split(/[\/\-]/).map(Number);
+      if (!d || !m || !y) return "Invalid date";
+    
+      const parsed = new Date(
+        `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}T${timePart}`
+      );
+      if (isNaN(parsed)) return "Invalid date";
+    
+      return parsed.toLocaleString("en-GB", { hour12: true });
+    }
+
+    async function loadPost() {
+      if (!postId) {
+        document.body.innerHTML = "<p>Post ID not provided.</p>";
+        return;
+      }
+
+      // Fetch post data (includes comments)
+      const res = await fetch(`${API_URL}?type=post&id=${postId}`);
+      const data = await res.json();
+      const p = data.post;
+      const comments = data.comments || [];
+
+      // Fetch likes
+      const likesRes = await fetch(`${API_URL}?likesForPost=${postId}`);
+      const likesData = await likesRes.json();
+      const likes = likesData.likes || [];
+      allLikes = likes;
+
+      // --- Render Post ---
+      const postDiv = document.getElementById("post");
+      postDiv.innerHTML = `
+        <div class="post-main">
+          <div class="post-header">
+            <strong>${p.name || "Unknown User"}</strong>
+            <a href="user.html?id=${p.userId}&from=likes.html" style="margin-left: 0.3em;">@${p.username}</a>
+          </div>
+          <div class="post-message">${p.message}</div>
+          <small>${parseBackendDate(p.timestamp)}</small>
+        </div>
+      `;
+
+      // --- Tabs with counts ---
+      document.getElementById("commentsTab").textContent = `${comments.length} Comments`;
+      document.getElementById("likesTab").textContent = `${likes.length} Likes`;
+      document.getElementById("commentsTab").href = `post.html?id=${postId}&from=${from}`;
+      document.getElementById("likesTab").href = `likes.html?id=${postId}&from=${from}`;
+
+      // --- Render likes list ---
+      renderLikes(allLikes);
+    }
+
+    function renderLikes(likes) {
+      const likesDiv = document.getElementById("likes");
+      if (!likes || likes.length === 0) {
+        likesDiv.innerHTML = "<em>No likes yet.</em>";
+        return;
+      }
+
+      likesDiv.innerHTML = likes.map(l => `
+        <div class="like-card">
+          <div class="post-header">
+            <strong>${l.name || "Unknown User"}</strong>
+            <a href="user.html?id=${l.userId}&from=likes.html">@${l.username}</a>
+          </div>
+          <small>${parseBackendDate(l.timestamp)}</small>
+        </div>
+      `).join("");
+    }
+
+    function filterLikes() {
+      const term = document.getElementById("searchLikes").value.toLowerCase();
+      const filtered = allLikes.filter(l =>
+        (l.username || "").toLowerCase().includes(term) ||
+        (l.name || "").toLowerCase().includes(term)
+      );
+      renderLikes(filtered);
+    }
+
+    loadPost();
+  </script>
+</body>
+</html>
