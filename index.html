@@ -222,21 +222,8 @@
 
     // --- RENDER POST CARD OR LOGIN PROMPT ---
     function setupPostCard() {
+      const container = document.getElementById("createPostCard");
       const user = JSON.parse(localStorage.getItem("user") || "null");
-
-      // Check if logged in user is 'alva'
-      if (user && user.username && user.username !== "alva") {
-        container.innerHTML = `
-          <div class="post-card" style="text-align:center;">
-            <div style="width:100%;">
-              <p>Only 'alva' can post messages.</p>
-              <p>Logged in as: ${user.username}</p>
-              <p><a href="login.html">Logout</a></p>
-            </div>
-          </div>
-        `;
-        return;
-      }
     
       if (!user || !user.username) {
         container.innerHTML = `
@@ -267,6 +254,16 @@
       const form = document.getElementById("form");
       const loading = document.getElementById("loading");
       const button = form.querySelector("button");
+      const messageInput = document.getElementById("message");
+
+      messageInput.addEventListener("focus", () => {
+        const user = JSON.parse(localStorage.getItem("user") || "null");
+        if (user && user.username !== "alva") {
+          alert("Only alva can post");
+          messageInput.disabled = true;
+          button.disabled = true;
+        }
+      });
     
       form.addEventListener("submit", async e => {
         e.preventDefault();
