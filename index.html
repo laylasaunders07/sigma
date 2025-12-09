@@ -209,25 +209,20 @@
     <a href="users.html">Users</a>
   </div>
   <input type="text" id="search" placeholder="Search posts..." oninput="filterMessages()">
-  <button id="filterAlvaPosts" style="margin-top: 0.5em; padding: 0.6em; border-radius: 6px; border: 1px solid #ccc; background-color: #f0f0f0; cursor: pointer;">Show Alva's Posts</button>
   <div id="messages"></div>
 
   <script>
     const API_URL = "https://gentle-wind-dea4.silly-7f7.workers.dev";
     const SECRET_KEY = "alva-the-fortnite-god";
     let allMessages = [];
-    let currentFilterAuthor = null; // New global variable for author filter
+    const currentFilterAuthor = "alva"; // New global variable for author filter
     let currentSearchTerm = ""; // New global variable for search term
 
     // Initialize page
-    init();
+    loadMessages();
+    setupPostCard();
 
-    function init() {
-      loadMessages();
-      setupPostCard();
-      const filterAlvaPostsButton = document.getElementById("filterAlvaPosts");
-      filterAlvaPostsButton.addEventListener("click", toggleAlvaFilter);
-    }
+
     
     // --- RENDER POST CARD OR LOGIN PROMPT ---
     function setupPostCard() {
@@ -340,17 +335,7 @@
       renderMessages(filteredMessages);
     }
     
-    function toggleAlvaFilter() {
-      const filterAlvaPostsButton = document.getElementById("filterAlvaPosts");
-      if (currentFilterAuthor === "alva") {
-        currentFilterAuthor = null;
-        filterAlvaPostsButton.textContent = "Show Alva's Posts";
-      } else {
-        currentFilterAuthor = "alva";
-        filterAlvaPostsButton.textContent = "Show All Posts";
-      }
-      applyFiltersAndRender();
-    }
+
 
     async function renderMessages(data) {
       const container = document.getElementById("messages");
